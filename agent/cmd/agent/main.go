@@ -9,10 +9,8 @@ import (
 )
 
 func main() {
-
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
-
 	viper.SetDefault("port", "8080")
 	viper.SetDefault("google.cloud.project", "vojtah-sandbox")
 
