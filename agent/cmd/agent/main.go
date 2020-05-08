@@ -5,6 +5,8 @@ import (
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
 	"github.com/spf13/viper"
+	"log"
+	"os/exec"
 	"strings"
 )
 
@@ -16,13 +18,19 @@ func main() {
 
 	svc := agent.NewService()
 
+	clone := exec.Command("git", "clone", "git@github.com:hromadkavojta/BP-infratest.git")
+	err := clone.Run()
+	if err != nil {
+		log.Printf("Couldn't fetch github repo %v", err)
+	}
+
 	e := echo.New()
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 
 	e.GET("/terraformplan", svc.TerraformPlan)
 	e.GET("/terraformshow", svc.TerraformShow)
-	e.GET("/terraformapply", svc.TerraformApply)
+	e.POST("/terraformapply", svc.TerraformApply)
 
 	e.Logger.Fatal(e.Start(":" + viper.GetString("port")))
 }

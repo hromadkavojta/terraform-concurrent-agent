@@ -30,6 +30,6 @@ RUN chmod 600 /root/.ssh/known_hosts
 
 COPY vojtah-sandbox-82d417bb102c.json .
 RUN export SSH_PRIVATE_KEY=/root/.ssh/id_rsa
-RUN export GOOGLE_APPLICATION_CREDENTIALS="vojtah-sandbox-82d417bb102c.json"
+ENV GOOGLE_APPLICATION_CREDENTIALS="vojtah-sandbox-82d417bb102c.json"
 
 ENTRYPOINT ["./agent"]
