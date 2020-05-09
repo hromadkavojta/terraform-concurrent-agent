@@ -159,17 +159,7 @@ func (s *Service) TerraformApply(c echo.Context) error {
 		panic(err)
 	}
 
-	gitCmd := exec.Command("git", "add", "planned_infra")
-	err = gitCmd.Run()
-	if err != nil {
-		c.JSON(http.StatusBadRequest, err)
-	}
-	err = gitCmd.Wait()
-	if err != nil {
-		log.Print(err)
-	}
-
-	gitCmd = exec.Command("git", "commit", "-m'Last infra changelog'")
+	gitCmd := exec.Command("git", "-C", s.repo, "commit", "-am'Last infra changelog'")
 	err = gitCmd.Run()
 	if err != nil {
 		c.JSON(http.StatusBadRequest, err)
@@ -180,6 +170,16 @@ func (s *Service) TerraformApply(c echo.Context) error {
 	}
 
 	gitCmd = exec.Command("git", "-C", s.repo, "pull", s.url)
+	err = gitCmd.Run()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, err)
+	}
+	err = gitCmd.Wait()
+	if err != nil {
+		log.Print(err)
+	}
+
+	gitCmd = exec.Command("git", "-C", s.repo, "push","origin","master")
 	err = gitCmd.Run()
 	if err != nil {
 		c.JSON(http.StatusBadRequest, err)
