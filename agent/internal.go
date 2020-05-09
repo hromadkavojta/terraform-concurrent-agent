@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/labstack/echo"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"os/exec"
-	"reflect"
-	"regexp"
 	"strconv"
 )
 
@@ -17,12 +17,7 @@ func NewService() *Service {
 	return &Service{}
 }
 
-func remove(s [][]string, i int) [][]string {
-	s[i] = s[len(s)-1]
-	return s[:len(s)-1]
-}
-
-func readInputs(cmd *exec.Cmd) string {
+func readInputs(cmd *exec.Cmd) (string, string) {
 	//Reading stdout
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -59,26 +54,16 @@ func readInputs(cmd *exec.Cmd) string {
 		line, err = reader.ReadString('\n')
 	}
 
-	return tfString + tfErrString
-}
-
-func notContain(processing [][]string, planned []string) bool {
-	plannedLen := len(planned) - 1
-	for _, resourceStruct := range processing {
-		for _, resource := range resourceStruct {
-			if resource == planned[plannedLen] {
-				return false
-			}
-		}
-	}
-	return true
+	return tfString + tfErrString, tfErrString
 }
 
 //TODO this should be called on github webook ( make terraform plan and save it )
 func (s *Service) TerraformPlan(c echo.Context) error {
 
+	//Waits for apply to finish, in case it's running some configuration at that moment
+	s.wg.Wait()
 	//Cloning infra repository to agents file system
-	clone := exec.Command("git", "-C", "BP-infratest", "pull", "git@github.com:hromadkavojta/BP-infratest.git")
+	clone := exec.Command("git", "-C", "infrastructure", "pull", "git@github.com:hromadkavojta/BP-infratest.git")
 	err := clone.Run()
 	if err != nil {
 		log.Printf("Couldn't pull github repo")
@@ -86,7 +71,7 @@ func (s *Service) TerraformPlan(c echo.Context) error {
 	}
 
 	//Initializes terraforming
-	tfInit := exec.Command("terraform", "init", "-lock=false", "BP-infratest")
+	tfInit := exec.Command("terraform", "init", "infrastructure")
 	err = tfInit.Run()
 	if err != nil {
 		log.Printf("Terraform couldnt run init")
@@ -94,94 +79,75 @@ func (s *Service) TerraformPlan(c echo.Context) error {
 	}
 
 	//Creates plan with last github version
-	cmd := exec.Command("terraform", "plan", "-no-color", "lock=false", "-out=version"+strconv.Itoa(s.PlansProvided)+".out", "BP-infratest")
+	cmd := exec.Command("terraform", "plan", "-no-color", "-out=version"+strconv.Itoa(s.PlansProvided)+".out", "infrastructure")
 	s.PlansProvided++
 
 	//outputs stderr+out
-	output := readInputs(cmd)
-	print(output)
-
-	//Finding all afected resources by given version of plan
-	re := regexp.MustCompile(`#[ ?]([^\s]+)`)
-	s.planned = append(s.planned, re.FindAllString(output, -1))
+	output, errString := readInputs(cmd)
+	if errString != "" {
+		fmt.Printf("%+v", errString)
+	}
 
 	err = cmd.Wait()
 	if err != nil {
 		log.Print(err)
 	}
 
+	f, err := os.Create("planned_infra")
+	if err != nil {
+		panic(err)
+	}
+	_, err = f.Write([]byte(output))
+	if err != nil {
+		panic(err)
+	}
+
 	//Compresses to json to send it over API to client application
-	jsonTfString, err := json.Marshal(output)
-	return c.JSON(http.StatusOK, jsonTfString)
+	return c.JSON(http.StatusOK, "planning succesfully finished")
 }
 
 //TODO this should send client info about new terraform plan ( infrastructure config)
 func (s *Service) TerraformShow(c echo.Context) error {
 
-	return c.JSON(http.StatusOK, nil)
+	dat, err := ioutil.ReadFile("planned_infra")
+	if err != nil {
+		panic(err)
+	}
+
+	jsonTfString, err := json.Marshal(dat)
+	return c.JSON(http.StatusOK, jsonTfString)
+
 }
 
 //TODO this should apply terraform config from given plan
 func (s *Service) TerraformApply(c echo.Context) error {
 
 	//Binds version of plan user wants to use
+	s.wg.Add(1)
 	var t ApplyStruct
 	err := c.Bind(&t)
 	if err != nil {
+		s.wg.Done()
 		return c.JSON(http.StatusBadRequest, err)
 	}
 
-	//Workaround about plan version number
-	re := regexp.MustCompile(`\d+`)
-	planNumArr := re.FindString(t.Plan)
-	planNum, err := strconv.Atoi(planNumArr)
-	if err != nil {
-		panic(err)
-	}
-
-	//Right before applying new version of infrastructure, we store which
-	s.processing = append(s.processing, s.planned[planNum])
-	sliceLen := len(s.processing)
-	sliceLen--
-
-	fmt.Printf("%+v\n", s.planned)
-	fmt.Printf("%+v\n", s.processing)
-
 	//applying infrastructure
+	cmd := exec.Command("terraform", "apply", t.Plan)
 
-	if reflect.DeepEqual(s.processing, s.planned[planNum]) {
-		cmd := exec.Command("terraform", "apply", "lock=false", t.Plan)
-
-		//outputs stderr+out
-		output := readInputs(cmd)
-		print(output)
-
-		//Wait for command to finish
-		err = cmd.Wait()
-		if err != nil {
-			log.Print(err)
-		}
-		s.processing = remove(s.processing, sliceLen)
-		fmt.Printf("%+v\n", s.processing)
-
-	} else if notContain(s.processing, s.planned[planNum]) {
-
-		cmd := exec.Command("terraform", "apply", "lock=false", t.Plan)
-
-		//outputs stderr+out
-		output := readInputs(cmd)
-		print(output)
-
-		//Wait for command to finish
-		err = cmd.Wait()
-		if err != nil {
-			log.Print(err)
-		}
-		s.processing = remove(s.processing, sliceLen)
-		fmt.Printf("%+v\n", s.processing)
-	} else {
-		return c.JSON(http.StatusConflict, "This plan has colisions with actual plan which is being executed right now, please wait")
+	//outputs stderr+out
+	output, errString := readInputs(cmd)
+	if errString != "" {
+		return c.JSON(http.StatusAccepted, "There occured error during applying infrastrucure, please check this log and fix your problems")
 	}
 
-	return c.JSON(http.StatusOK, nil)
+	print(output)
+
+	//Wait for command to finish
+	err = cmd.Wait()
+	if err != nil {
+		log.Print(err)
+	}
+
+	s.wg.Done()
+	return c.JSON(http.StatusOK, "Plan successfuly applied on your cloud environment, you can see the changelog on your github")
 }

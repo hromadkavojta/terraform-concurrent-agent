@@ -1,9 +1,14 @@
 package agent
 
+import (
+	"gopkg.in/src-d/go-git.v4"
+	"sync"
+)
+
 type Service struct {
-	planned       [][]string
-	processing    [][]string
 	PlansProvided int
+	wg            sync.WaitGroup
+	Repo          *git.Repository
 }
 
 type ApplyStruct struct {
