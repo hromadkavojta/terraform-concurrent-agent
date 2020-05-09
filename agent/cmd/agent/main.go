@@ -7,41 +7,25 @@ import (
 	"github.com/spf13/viper"
 	"log"
 	"os/exec"
-	"strings"
 )
 
 func main() {
-	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
 	viper.SetDefault("port", "8080")
-	viper.SetDefault("google.cloud.project", "vojtah-sandbox")
-	viper.SetDefault("SOURCE.OWNER", "hromadkavojta")
-	viper.SetDefault("SOURCE.REPOT", "BP-infratest")
-	viper.SetDefault("COMMIT.BRANCH", "master")
-	viper.SetDefault("BASE.BRANCH", "master")
-	viper.SetDefault("ACCESS.TOKEN", "ba178473c29d33eff42d314f5cd47ff1c84977c9")
-	viper.SetDefault("GIT.URL", "git@github.com:hromadkavojta/BP-infratest.git")
+	viper.SetDefault("google_cloud_project", "vojtah-sandbox")
+	viper.SetDefault("SOURCE_OWNER", "hromadkavojta")
+	viper.SetDefault("SOURCE_REPO", "BP-infratest")
+	viper.SetDefault("COMMIT_BRANCH", "master")
+	viper.SetDefault("BASE_BRANCH", "master")
+	viper.SetDefault("ACCESS_TOKEN", "")
+	viper.SetDefault("GIT_URL", "git@github.com:hromadkavojta/BP-infratest.git")
 
-	//ctx := context.Background()
-	//ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "ba178473c29d33eff42d314f5cd47ff1c84977c9"})
-	//tc := oauth2.NewClient(ctx, ts)
+	serviceVariables := agent.ServiceVariables{
+		Repo: viper.GetString("SOURCE_REPO"),
+		Url:  viper.GetString("GIT_URL"),
+	}
 
-	svc := agent.NewService()
-
-	//r, err := git.PlainClone(".", false, &git.CloneOptions{
-	//	Auth: &http.BasicAuth{
-	//		Username: "randomstring",
-	//		Password: viper.GetString("ACCESS_TOKEN"),
-	//	},
-	//	URL: viper.GetString("GIT.URL"),
-	//
-	//})
-	//if err != nil {
-	//	fmt.Printf("\x1b[31;1m%s\x1b[0m\n", fmt.Sprintf("error: %s", err))
-	//	os.Exit(1)
-	//}
-	//
-	//svc.Repo = r
+	svc := agent.NewService(serviceVariables)
 
 	clone := exec.Command("git", "clone", "git@github.com:hromadkavojta/BP-infratest.git")
 	err := clone.Run()

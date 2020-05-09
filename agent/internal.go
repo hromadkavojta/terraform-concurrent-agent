@@ -10,12 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"strconv"
 )
-
-func NewService() *Service {
-	return &Service{}
-}
 
 func readInputs(cmd *exec.Cmd) (string, string) {
 	//Reading stdout
@@ -63,23 +58,23 @@ func (s *Service) TerraformPlan(c echo.Context) error {
 	//Waits for apply to finish, in case it's running some configuration at that moment
 	s.wg.Wait()
 	//Cloning infra repository to agents file system
-	clone := exec.Command("git", "-C", "infrastructure", "pull", "git@github.com:hromadkavojta/BP-infratest.git")
-	err := clone.Run()
+	gitpull := exec.Command("git", "-C", s.repo, "pull", s.url)
+	err := gitpull.Run()
 	if err != nil {
-		log.Printf("Couldn't pull github repo")
+		fmt.Printf("\x1b[31;1m%s\x1b[0m\n", fmt.Sprintf("error: %s", err))
 		return c.JSON(http.StatusNotFound, "Couldn't fetch github repo")
 	}
 
 	//Initializes terraforming
-	tfInit := exec.Command("terraform", "init", "infrastructure")
+	tfInit := exec.Command("terraform", "init", s.repo)
 	err = tfInit.Run()
 	if err != nil {
-		log.Printf("Terraform couldnt run init")
+		fmt.Printf("\x1b[31;1m%s\x1b[0m\n", fmt.Sprintf("error: %s", err))
 		return c.JSON(http.StatusNotFound, "Couldnt init terraform")
 	}
 
 	//Creates plan with last github version
-	cmd := exec.Command("terraform", "plan", "-no-color", "-out=version"+strconv.Itoa(s.PlansProvided)+".out", "infrastructure")
+	cmd := exec.Command("terraform", "plan", "-no-color", "-out=plan.out", s.repo)
 	s.PlansProvided++
 
 	//outputs stderr+out
@@ -93,7 +88,7 @@ func (s *Service) TerraformPlan(c echo.Context) error {
 		log.Print(err)
 	}
 
-	f, err := os.Create("planned_infra")
+	f, err := os.Create(s.repo + "/planned_infra")
 	if err != nil {
 		panic(err)
 	}
@@ -103,17 +98,21 @@ func (s *Service) TerraformPlan(c echo.Context) error {
 	}
 
 	//Compresses to json to send it over API to client application
-	return c.JSON(http.StatusOK, "planning succesfully finished")
+	return c.JSON(http.StatusOK, "planning succesfully finished, you can take a look with ./tfagent show")
 }
 
 //TODO this should send client info about new terraform plan ( infrastructure config)
 func (s *Service) TerraformShow(c echo.Context) error {
 
-	dat, err := ioutil.ReadFile("planned_infra")
+	if _, err := os.Stat(s.repo + "/planned_infra"); err != nil {
+		return c.JSON(http.StatusForbidden, "At this moment doesnt exist any plan to apply!")
+	}
+	dat, err := ioutil.ReadFile(s.repo + "/planned_infra")
 	if err != nil {
 		panic(err)
 	}
 
+	fmt.Printf(string(dat))
 	jsonTfString, err := json.Marshal(dat)
 	return c.JSON(http.StatusOK, jsonTfString)
 
@@ -132,12 +131,19 @@ func (s *Service) TerraformApply(c echo.Context) error {
 	}
 
 	//applying infrastructure
-	cmd := exec.Command("terraform", "apply", t.Plan)
+	if _, err = os.Stat("plan.out"); err != nil {
+		s.wg.Done()
+		return c.JSON(http.StatusForbidden, "Something had to go wrong, there is no plan to apply")
+	}
+
+	cmd := exec.Command("terraform", "apply", "-no-color", "plan.out")
 
 	//outputs stderr+out
 	output, errString := readInputs(cmd)
+	fmt.Printf(errString)
 	if errString != "" {
-		return c.JSON(http.StatusAccepted, "There occured error during applying infrastrucure, please check this log and fix your problems")
+		s.wg.Done()
+		return c.JSON(http.StatusAccepted, "There occured error during applying infrastrucure, please check this log and fix your problems"+errString)
 	}
 
 	print(output)
@@ -148,6 +154,41 @@ func (s *Service) TerraformApply(c echo.Context) error {
 		log.Print(err)
 	}
 
+	err = os.Remove("plan.out")
+	if err != nil {
+		panic(err)
+	}
+
+	gitCmd := exec.Command("git", "add", "planned_infra")
+	err = gitCmd.Run()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, err)
+	}
+	err = gitCmd.Wait()
+	if err != nil {
+		log.Print(err)
+	}
+
+	gitCmd = exec.Command("git", "commit", "-m'Last infra changelog'")
+	err = gitCmd.Run()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, err)
+	}
+	err = gitCmd.Wait()
+	if err != nil {
+		log.Print(err)
+	}
+
+	gitCmd = exec.Command("git", "-C", s.repo, "pull", s.url)
+	err = gitCmd.Run()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, err)
+	}
+	err = gitCmd.Wait()
+	if err != nil {
+		log.Print(err)
+	}
+
 	s.wg.Done()
-	return c.JSON(http.StatusOK, "Plan successfuly applied on your cloud environment, you can see the changelog on your github")
+	return c.JSON(http.StatusOK, output)
 }
