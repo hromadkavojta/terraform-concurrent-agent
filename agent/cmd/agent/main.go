@@ -1,12 +1,13 @@
 package main
 
 import (
+	"fmt"
+	git "github.com/go-git/go-git/v5"
+	githttp "github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/hromadkavojta/terraform-concurrent-agent/agent"
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
 	"github.com/spf13/viper"
-	git "gopkg.in/src-d/go-git.v4"
-	"gopkg.in/src-d/go-git.v4/plumbing/transport/http"
 	"os"
 )
 
@@ -14,34 +15,35 @@ func main() {
 	viper.AutomaticEnv()
 	viper.SetDefault("port", "8080")
 	viper.SetDefault("google_cloud_project", "vojtah-sandbox")
-	viper.SetDefault("SOURCE_OWNER", "hromadkavojta")
+	viper.SetDefault("COMMITTER", "hromadkavojta")
+	viper.SetDefault("COMMITTER_EMAIL", "hromadkavojta@gmail.com")
 	viper.SetDefault("SOURCE_REPO", "BP-infratest")
 	viper.SetDefault("COMMIT_BRANCH", "master")
 	viper.SetDefault("BASE_BRANCH", "master")
-	viper.SetDefault("ACCESS_TOKEN", "")
-	viper.SetDefault("GIT_URL", "git@github.com:hromadkavojta/BP-infratest.git")
+	viper.SetDefault("ACCESS_TOKEN", "f542581834df185f66eff400afa289636fd10920")
+	viper.SetDefault("GIT_URL", "https://github.com/hromadkavojta/BP-infratest")
 
-	serviceVariables := agent.ServiceVariables{
-		Repo: viper.GetString("SOURCE_REPO"),
-		Url:  viper.GetString("GIT_URL"),
-	}
-
-	svc := agent.NewService(serviceVariables)
-
-	r, err := git.PlainClone(viper.GetString("SOURCE_REPO"), false, &git.CloneOptions{
-		Auth: &http.BasicAuth{
+	_, err := git.PlainClone(viper.GetString("SOURCE_REPO"), false, &git.CloneOptions{
+		Auth: &githttp.BasicAuth{
 			Username: "notNeeded",
 			Password: viper.GetString("ACCESS_TOKEN"),
 		},
 		URL:      viper.GetString("GIT_URL"),
 		Progress: os.Stdout,
 	})
+	if err != nil {
+		fmt.Printf("\x1b[31;1m%s\x1b[0m\n", fmt.Sprintf("error: %s", err))
+	}
 
-	//clone := exec.Command("git", "clone", "git@github.com:hromadkavojta/BP-infratest.git")
-	//err := clone.Run()
-	//if err != nil {
-	//	log.Printf("Couldn't fetch github repo %v", err)
-	//}
+	serviceVariables := agent.ServiceVariables{
+		Repo:           viper.GetString("SOURCE_REPO"),
+		Url:            viper.GetString("GIT_URL"),
+		AccessToken:    viper.GetString("ACCESS_TOKEN"),
+		Committer:      viper.GetString("COMMITTER"),
+		CommitterEmail: viper.GetString("COMMITTER_EMAIL"),
+	}
+
+	svc := agent.NewService(serviceVariables)
 
 	e := echo.New()
 	e.Use(middleware.Logger())
