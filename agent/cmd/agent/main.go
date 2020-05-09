@@ -5,8 +5,9 @@ import (
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
 	"github.com/spf13/viper"
-	"log"
-	"os/exec"
+	git "gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4/plumbing/transport/http"
+	"os"
 )
 
 func main() {
@@ -27,11 +28,20 @@ func main() {
 
 	svc := agent.NewService(serviceVariables)
 
-	clone := exec.Command("git", "clone", "git@github.com:hromadkavojta/BP-infratest.git")
-	err := clone.Run()
-	if err != nil {
-		log.Printf("Couldn't fetch github repo %v", err)
-	}
+	r, err := git.PlainClone(viper.GetString("SOURCE_REPO"), false, &git.CloneOptions{
+		Auth: &http.BasicAuth{
+			Username: "notNeeded",
+			Password: viper.GetString("ACCESS_TOKEN"),
+		},
+		URL:      viper.GetString("GIT_URL"),
+		Progress: os.Stdout,
+	})
+
+	//clone := exec.Command("git", "clone", "git@github.com:hromadkavojta/BP-infratest.git")
+	//err := clone.Run()
+	//if err != nil {
+	//	log.Printf("Couldn't fetch github repo %v", err)
+	//}
 
 	e := echo.New()
 	e.Use(middleware.Logger())

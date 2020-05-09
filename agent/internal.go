@@ -14,6 +14,7 @@ import (
 
 func readInputs(cmd *exec.Cmd) (string, string) {
 	//Reading stdout
+
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		log.Print(err)
@@ -49,6 +50,11 @@ func readInputs(cmd *exec.Cmd) (string, string) {
 		line, err = reader.ReadString('\n')
 	}
 
+	err = cmd.Wait()
+	if err != nil {
+		log.Print(err)
+	}
+
 	return tfString + tfErrString, tfErrString
 }
 
@@ -81,11 +87,6 @@ func (s *Service) TerraformPlan(c echo.Context) error {
 	output, errString := readInputs(cmd)
 	if errString != "" {
 		fmt.Printf("%+v", errString)
-	}
-
-	err = cmd.Wait()
-	if err != nil {
-		log.Print(err)
 	}
 
 	f, err := os.Create(s.repo + "/planned_infra")
@@ -137,7 +138,6 @@ func (s *Service) TerraformApply(c echo.Context) error {
 	}
 
 	cmd := exec.Command("terraform", "apply", "-no-color", "plan.out")
-
 	//outputs stderr+out
 	output, errString := readInputs(cmd)
 	fmt.Printf(errString)
@@ -145,49 +145,29 @@ func (s *Service) TerraformApply(c echo.Context) error {
 		s.wg.Done()
 		return c.JSON(http.StatusAccepted, "There occured error during applying infrastrucure, please check this log and fix your problems"+errString)
 	}
-
 	print(output)
-
-	//Wait for command to finish
-	err = cmd.Wait()
-	if err != nil {
-		log.Print(err)
-	}
 
 	err = os.Remove("plan.out")
 	if err != nil {
-		panic(err)
+		s.wg.Done()
+		c.JSON(http.StatusInternalServerError, err)
 	}
 
-	gitCmd := exec.Command("git", "-C", s.repo, "commit", "-am'Last infra changelog'")
-	err = gitCmd.Run()
-	if err != nil {
-		c.JSON(http.StatusBadRequest, err)
-	}
-	err = gitCmd.Wait()
-	if err != nil {
-		log.Print(err)
-	}
+	gitCmd1 := exec.Command("git", "-C", s.repo, "add", "planned_infra")
+	output, errString = readInputs(gitCmd1)
+	print(output)
 
-	gitCmd = exec.Command("git", "-C", s.repo, "pull", s.url)
-	err = gitCmd.Run()
-	if err != nil {
-		c.JSON(http.StatusBadRequest, err)
-	}
-	err = gitCmd.Wait()
-	if err != nil {
-		log.Print(err)
-	}
+	gitCmd2 := exec.Command("git", "-C", s.repo, "commit", "-m'Last infra changelog'")
+	output, errString = readInputs(gitCmd2)
+	print(output)
 
-	gitCmd = exec.Command("git", "-C", s.repo, "push","origin","master")
-	err = gitCmd.Run()
-	if err != nil {
-		c.JSON(http.StatusBadRequest, err)
-	}
-	err = gitCmd.Wait()
-	if err != nil {
-		log.Print(err)
-	}
+	gitCmd3 := exec.Command("git", "-C", s.repo, "pull", s.url)
+	output, errString = readInputs(gitCmd3)
+	print(output)
+
+	gitCmd4 := exec.Command("git", "-C", s.repo, "push", "origin", "master")
+	output, errString = readInputs(gitCmd4)
+	print(output)
 
 	s.wg.Done()
 	return c.JSON(http.StatusOK, output)
