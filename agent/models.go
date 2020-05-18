@@ -4,11 +4,10 @@ import "sync"
 import git "github.com/go-git/go-git/v5"
 
 type Service struct {
-	PlansProvided int
-	wg            sync.WaitGroup
-	repo          string
-	url           string
-	//r             *git.Repository
+	PlansProvided  int
+	wg             sync.WaitGroup
+	repo           string
+	url            string
 	AccessToken    string
 	w              *git.Worktree
 	committer      string
@@ -19,9 +18,8 @@ func NewService(
 	variables ServiceVariables,
 ) *Service {
 	return &Service{
-		repo: variables.Repo,
-		url:  variables.Url,
-		//r:             variables.Repository,
+		repo:           variables.Repo,
+		url:            variables.Url,
 		AccessToken:    variables.AccessToken,
 		committer:      variables.Committer,
 		committerEmail: variables.CommitterEmail,
@@ -35,8 +33,4 @@ type ServiceVariables struct {
 	AccessToken    string
 	Committer      string
 	CommitterEmail string
-}
-
-type ApplyStruct struct {
-	Plan string `json:"plan"`
 }

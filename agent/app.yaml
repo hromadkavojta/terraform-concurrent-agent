@@ -1,3 +1,11 @@
 runtime: custom
 service: agent
 env: flex
+
+env_variables:
+  COMMITTER: "hromadkavojta"
+  COMMITTER_EMAIL: "hromadkavojta@gmail.com"
+  SOURCE_REPO: "BP-infratest"
+  ACCESS_TOKEN: ""
+  GIT_URL_HTTPS: "https://github.com/hromadkavojta/BP-infratest.git"
+  GIT_URL_SSH: "git@github.com:hromadkavojta/BP-infratest.git"

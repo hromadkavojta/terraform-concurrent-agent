@@ -2,7 +2,6 @@ package agent
 
 import (
 	"bufio"
-	"encoding/json"
 	"fmt"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
@@ -14,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 )
 
@@ -74,28 +74,31 @@ func (s *Service) TerraformPlan(c echo.Context) error {
 
 	//Waits for apply to finish, in case it's running some configuration at that moment
 	s.wg.Wait()
+	s.wg.Add(1)
+	defer s.wg.Done()
 	//Cloning infra repository to agents file system
 
 	var err error
-	r, err := git.PlainOpen("BP-infratest")
-	checkError(err)
 
-	w, err := r.Worktree()
-
-	err = w.Pull(&git.PullOptions{
-		RemoteName: "origin",
-		Auth: &githttp.BasicAuth{
-			Username: "notNeeded",
-			Password: viper.GetString("ACCESS_TOKEN"),
-		},
-	})
-
-	checkError(err)
+	gitPull := exec.Command("git", "-C", s.repo, "pull", s.url)
+	output, _ := readInputs(gitPull)
+	println(output)
 
 	//Initializes terraforming
 	tfInit := exec.Command("terraform", "init", s.repo)
 	output, errString := readInputs(tfInit)
-	println(errString)
+	if errString != "" {
+		fmt.Printf("%+v", errString)
+		f, err := os.Create(s.repo + "/planned_infra")
+		if err != nil {
+			panic(err)
+		}
+		_, err = f.Write([]byte(errString))
+		if err != nil {
+			panic(err)
+		}
+		return c.JSON(http.StatusOK, errString)
+	}
 
 	//Creates plan with last github version
 	cmd := exec.Command("terraform", "plan", "-no-color", "-out=plan.out", s.repo)
@@ -104,85 +107,88 @@ func (s *Service) TerraformPlan(c echo.Context) error {
 	output, errString = readInputs(cmd)
 	if errString != "" {
 		fmt.Printf("%+v", errString)
+		f, err := os.Create(s.repo + "/planned_infra")
+		if err != nil {
+			panic(err)
+		}
+		_, err = f.Write([]byte(errString))
+		if err != nil {
+			panic(err)
+		}
+		return c.JSON(http.StatusOK, errString)
 	}
 
 	f, err := os.Create(s.repo + "/planned_infra")
 	if err != nil {
 		panic(err)
 	}
-	_, err = f.Write([]byte(output))
+	trimOutput := strings.Split(output, "------------------------------------------------------------------------")
+	_, err = f.Write([]byte(trimOutput[1]))
 	if err != nil {
 		panic(err)
 	}
 
 	//Compresses to json to send it over API to client application
-	return c.JSON(http.StatusOK, "planning succesfully finished, you can take a look with ./tfagent show")
+	return c.JSON(http.StatusOK, "planning succesfully finished, you can take a look on planned changes with ./tfagent show\n")
 }
 
 func (s *Service) TerraformShow(c echo.Context) error {
 
-	if _, err := os.Stat(s.repo + "/planned_infra"); err != nil {
-		return c.JSON(http.StatusForbidden, "At this moment doesnt exist any plan to apply!")
+	s.wg.Wait()
+
+	if _, err := os.Stat("plan.out"); err != nil {
+		return c.JSON(http.StatusForbidden, "At this moment doesnt exist any plan to apply!\n")
 	}
+
+	if _, err := os.Stat(s.repo + "/planned_infra"); err != nil {
+		return c.JSON(http.StatusForbidden, "At this moment doesnt exist any plan to apply!\n")
+	}
+
 	dat, err := ioutil.ReadFile(s.repo + "/planned_infra")
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Printf(string(dat))
-	jsonTfString, err := json.Marshal(dat)
-	return c.JSON(http.StatusOK, jsonTfString)
+	return c.JSON(http.StatusOK, string(dat))
 
 }
 
 func (s *Service) TerraformApply(c echo.Context) error {
 	//Binds version of plan user wants to use
 	s.wg.Add(1)
-	var t ApplyStruct
-	err := c.Bind(&t)
-	if err != nil {
-		s.wg.Done()
-		return c.JSON(http.StatusBadRequest, err)
-	}
+	defer s.wg.Done()
 
 	//applying infrastructure
-	if _, err = os.Stat("plan.out"); err != nil {
-		s.wg.Done()
-		return c.JSON(http.StatusForbidden, "Something had to go wrong, there is no plan to apply")
+	if _, err := os.Stat("plan.out"); err != nil {
+		return c.JSON(http.StatusForbidden, "Something had to go wrong, there is no plan to apply\n Please check if you have plan before you apply!\n")
 	}
 
 	cmd := exec.Command("terraform", "apply", "-no-color", "plan.out")
 	//outputs stderr+out
 	output, errString := readInputs(cmd)
+	terraformOut := output
 	fmt.Printf(errString)
 	if errString != "" {
-		s.wg.Done()
 		return c.JSON(http.StatusAccepted, "There occured error during applying infrastrucure, please check this log and fix your problems"+errString)
 	}
 	print(output)
 
-	err = os.Remove("plan.out")
+	err := os.Remove("plan.out")
 	if err != nil {
-		s.wg.Done()
-		c.JSON(http.StatusInternalServerError, err)
+		return c.JSON(http.StatusInternalServerError, err)
 	}
 
-	r, err := git.PlainOpen("BP-infratest")
+	gitPush := exec.Command("git", "-C", s.repo, "pull", s.url)
+	output, _ = readInputs(gitPush)
+	println(output)
+
+	r, err := git.PlainOpen(s.repo)
 	checkError(err)
 
 	w, err := r.Worktree()
 	checkError(err)
 
 	_, err = w.Add("planned_infra")
-	checkError(err)
-
-	err = w.Pull(&git.PullOptions{
-		RemoteName: "origin",
-		Auth: &githttp.BasicAuth{
-			Username: "notNeeded",
-			Password: viper.GetString("ACCESS_TOKEN"),
-		},
-	})
 	checkError(err)
 
 	_, err = w.Commit("last Infrastructure changes", &git.CommitOptions{
@@ -196,7 +202,7 @@ func (s *Service) TerraformApply(c echo.Context) error {
 	checkError(err)
 
 	err = r.Push(&git.PushOptions{
-		RemoteName: "origin",
+		RemoteName: "push",
 		Auth: &githttp.BasicAuth{
 			Username: "notNeeded",
 			Password: viper.GetString("ACCESS_TOKEN"),
@@ -204,6 +210,5 @@ func (s *Service) TerraformApply(c echo.Context) error {
 	})
 	checkError(err)
 
-	s.wg.Done()
-	return c.JSON(http.StatusOK, output)
+	return c.JSON(http.StatusOK, terraformOut)
 }

@@ -2,42 +2,26 @@ package main
 
 import (
 	"fmt"
-	git "github.com/go-git/go-git/v5"
-	githttp "github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/hromadkavojta/terraform-concurrent-agent/agent"
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
 	"github.com/spf13/viper"
-	"os"
+	"os/exec"
 )
 
 func main() {
 	viper.AutomaticEnv()
 	viper.SetDefault("port", "8080")
-	viper.SetDefault("google_cloud_project", "vojtah-sandbox")
 	viper.SetDefault("COMMITTER", "hromadkavojta")
 	viper.SetDefault("COMMITTER_EMAIL", "hromadkavojta@gmail.com")
 	viper.SetDefault("SOURCE_REPO", "BP-infratest")
-	viper.SetDefault("COMMIT_BRANCH", "master")
-	viper.SetDefault("BASE_BRANCH", "master")
-	viper.SetDefault("ACCESS_TOKEN", "f542581834df185f66eff400afa289636fd10920")
-	viper.SetDefault("GIT_URL", "https://github.com/hromadkavojta/BP-infratest")
-
-	_, err := git.PlainClone(viper.GetString("SOURCE_REPO"), false, &git.CloneOptions{
-		Auth: &githttp.BasicAuth{
-			Username: "notNeeded",
-			Password: viper.GetString("ACCESS_TOKEN"),
-		},
-		URL:      viper.GetString("GIT_URL"),
-		Progress: os.Stdout,
-	})
-	if err != nil {
-		fmt.Printf("\x1b[31;1m%s\x1b[0m\n", fmt.Sprintf("error: %s", err))
-	}
+	viper.SetDefault("ACCESS_TOKEN", "")
+	viper.SetDefault("GIT_URL_HTTPS", "https://github.com/hromadkavojta/BP-infratest.git")
+	viper.SetDefault("GIT_URL_SSH", "git@github.com:hromadkavojta/BP-infratest.git")
 
 	serviceVariables := agent.ServiceVariables{
 		Repo:           viper.GetString("SOURCE_REPO"),
-		Url:            viper.GetString("GIT_URL"),
+		Url:            viper.GetString("GIT_URL_SSH"),
 		AccessToken:    viper.GetString("ACCESS_TOKEN"),
 		Committer:      viper.GetString("COMMITTER"),
 		CommitterEmail: viper.GetString("COMMITTER_EMAIL"),
@@ -45,13 +29,25 @@ func main() {
 
 	svc := agent.NewService(serviceVariables)
 
+	clone := exec.Command("git", "clone", viper.GetString("GIT_URL_SSH"))
+	err := clone.Run()
+	if err != nil {
+		fmt.Printf("\x1b[31;1m%s\x1b[0m\n", fmt.Sprintf("error which is here: %s", err))
+	}
+
+	remoteAdd := exec.Command("git", "-C", viper.GetString("SOURCE_REPO"), "remote", "add", "push", viper.GetString("GIT_URL_HTTPS"))
+	err = remoteAdd.Run()
+	if err != nil {
+		fmt.Printf("\x1b[31;1m%s\x1b[0m\n", fmt.Sprintf("error which is here: %s", err))
+	}
+
 	e := echo.New()
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 
 	e.GET("/terraformplan", svc.TerraformPlan)
 	e.GET("/terraformshow", svc.TerraformShow)
-	e.POST("/terraformapply", svc.TerraformApply)
+	e.GET("/terraformapply", svc.TerraformApply)
 
 	e.Logger.Fatal(e.Start(":" + viper.GetString("port")))
 }
