@@ -4,6 +4,7 @@ go 1.13
 
 require (
 	github.com/go-git/go-git/v5 v5.0.0
+	github.com/gorilla/websocket v1.4.2
 	github.com/kr/pretty v0.2.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/labstack/echo v3.3.10+incompatible

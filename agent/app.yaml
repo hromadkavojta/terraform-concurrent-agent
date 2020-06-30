@@ -6,6 +6,6 @@ env_variables:
   COMMITTER: "hromadkavojta"
   COMMITTER_EMAIL: "hromadkavojta@gmail.com"
   SOURCE_REPO: "BP-infratest"
-  ACCESS_TOKEN: ""
+  ACCESS_TOKEN: "0e19c3425cf899c11a0f37004993601d5ca8c31d"
   GIT_URL_HTTPS: "https://github.com/hromadkavojta/BP-infratest.git"
   GIT_URL_SSH: "git@github.com:hromadkavojta/BP-infratest.git"

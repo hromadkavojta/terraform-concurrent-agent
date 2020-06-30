@@ -1,13 +1,17 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/gorilla/websocket"
 	"github.com/urfave/cli"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
+	"os/signal"
 	"sort"
 )
 
@@ -26,7 +30,7 @@ func main() {
 			Aliases: []string{"s"},
 			Usage:   "Shows terraform plan for next infastructure changes",
 			Action: func(c *cli.Context) error {
-				resp, err := http.Get(Url + "/terraformshow")
+				resp, err := http.Get(Url + "terraformshow")
 				if err != nil {
 					panic(err)
 				}
@@ -48,19 +52,30 @@ func main() {
 			Usage:   "Applies last terraform plans",
 			Action: func(c *cli.Context) error {
 				fmt.Printf("Applying infrastructure plan\n This might take a while...\n")
-				resp, err := http.Get(Url + "/terraformapply")
-				if err != nil {
-					panic(err)
-				}
-				defer resp.Body.Close()
-				body, err := ioutil.ReadAll(resp.Body)
 
-				var responseString string
-				err = json.Unmarshal(body, &responseString)
+				interrupt := make(chan os.Signal, 1)
+				signal.Notify(interrupt, os.Interrupt)
+
+				u := url.URL{Scheme: "ws", Host: "localhost:8080", Path: "/terraformapply"}
+				log.Printf("connecting to server")
+
+				conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 				if err != nil {
-					panic(err)
+					conn.Close()
+					log.Fatal("dial:", err)
 				}
-				fmt.Printf(responseString)
+				defer conn.Close()
+
+				for {
+					_, message, err := conn.ReadMessage()
+					if err != nil {
+						log.Println("read:", err)
+					}
+					if bytes.Compare(message, []byte("\n\r")) == 0 {
+						break
+					}
+					log.Printf("%s", message)
+				}
 				return nil
 			},
 		},
@@ -70,7 +85,7 @@ func main() {
 			Usage:   "Creates new terraform plan fom master repo on github",
 			Action: func(c *cli.Context) error {
 				fmt.Printf("Creating infrastructure plan\n Please wait a moment...\n")
-				resp, err := http.Get(Url + "/terraformplan")
+				resp, err := http.Get(Url + "terraformplan")
 				if err != nil {
 					panic(err)
 				}

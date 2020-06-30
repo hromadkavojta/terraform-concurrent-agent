@@ -6,6 +6,7 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	githttp "github.com/go-git/go-git/v5/plumbing/transport/http"
+	"github.com/gorilla/websocket"
 	"github.com/labstack/echo"
 	"github.com/spf13/viper"
 	"io/ioutil"
@@ -165,21 +166,48 @@ func (s *Service) TerraformApply(c echo.Context) error {
 
 	cmd := exec.Command("terraform", "apply", "-no-color", "plan.out")
 	//outputs stderr+out
-	output, errString := readInputs(cmd)
-	terraformOut := output
-	fmt.Printf(errString)
-	if errString != "" {
-		return c.JSON(http.StatusAccepted, "There occured error during applying infrastrucure, please check this log and fix your problems"+errString)
-	}
-	print(output)
 
-	err := os.Remove("plan.out")
+	var (
+		upgrader = websocket.Upgrader{}
+	)
+
+	ws, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
+	if err != nil {
+		return err
+	}
+	defer ws.Close()
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		panic(err)
+	}
+	err = cmd.Start()
+	if err != nil {
+		panic(err)
+	}
+
+	reader := bufio.NewReader(stdout)
+	line, err := reader.ReadString('\n')
+	for err == nil {
+		line, err = reader.ReadString('\n')
+		err := ws.WriteMessage(websocket.TextMessage, []byte(line))
+		if err != nil {
+			c.Logger().Error(err)
+		}
+	}
+
+	err = ws.WriteMessage(websocket.TextMessage, []byte("\n\r"))
+	if err != nil {
+		c.Logger().Error(err)
+	}
+
+	err = os.Remove("plan.out")
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, err)
 	}
 
 	gitPush := exec.Command("git", "-C", s.repo, "pull", s.url)
-	output, _ = readInputs(gitPush)
+	output, _ := readInputs(gitPush)
 	println(output)
 
 	r, err := git.PlainOpen(s.repo)
@@ -210,5 +238,5 @@ func (s *Service) TerraformApply(c echo.Context) error {
 	})
 	checkError(err)
 
-	return c.JSON(http.StatusOK, terraformOut)
+	return c.JSON(http.StatusOK, "successfuly finished")
 }

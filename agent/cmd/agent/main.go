@@ -15,7 +15,7 @@ func main() {
 	viper.SetDefault("COMMITTER", "hromadkavojta")
 	viper.SetDefault("COMMITTER_EMAIL", "hromadkavojta@gmail.com")
 	viper.SetDefault("SOURCE_REPO", "BP-infratest")
-	viper.SetDefault("ACCESS_TOKEN", "")
+	viper.SetDefault("ACCESS_TOKEN", "0e19c3425cf899c11a0f37004993601d5ca8c31d")
 	viper.SetDefault("GIT_URL_HTTPS", "https://github.com/hromadkavojta/BP-infratest.git")
 	viper.SetDefault("GIT_URL_SSH", "git@github.com:hromadkavojta/BP-infratest.git")
 
