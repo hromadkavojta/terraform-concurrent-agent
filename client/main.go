@@ -5,20 +5,23 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/websocket"
+	"github.com/spf13/viper"
 	"github.com/urfave/cli"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
-	"os/signal"
 	"sort"
 	"strings"
 )
 
 var Url string
+var Hash string
 
 func main() {
+
+	viper.AutomaticEnv()
 
 	app := &cli.App{
 		Name:  "Terraform agent CLI",
@@ -31,7 +34,16 @@ func main() {
 			Aliases: []string{"s"},
 			Usage:   "Shows terraform plan for next infastructure changes",
 			Action: func(c *cli.Context) error {
-				resp, err := http.Get(Url + "terraformshow")
+				var bearer = "Bearer " + Hash
+
+				req, err := http.NewRequest("GET", Url+"terraformshow", nil)
+
+				req.Header.Add("Authorization", bearer)
+
+				client := &http.Client{}
+
+				resp, err := client.Do(req)
+
 				if err != nil {
 					panic(err)
 				}
@@ -41,7 +53,8 @@ func main() {
 				var responseString string
 				err = json.Unmarshal(body, &responseString)
 				if err != nil {
-					panic(err)
+					fmt.Printf("Bad Authorization")
+					return nil
 				}
 				fmt.Printf("%+v\n", responseString)
 				return nil
@@ -54,16 +67,16 @@ func main() {
 			Action: func(c *cli.Context) error {
 				fmt.Printf("Applying infrastructure plan\n This might take a while...\n")
 
-				interrupt := make(chan os.Signal, 1)
-				signal.Notify(interrupt, os.Interrupt)
+				var bearer = "Bearer " + Hash
+				req, err := http.NewRequest("GET", Url+"terraformshow", nil)
+				req.Header.Add("Authorization", bearer)
 
 				u := url.URL{Scheme: "ws", Host: strings.Trim(Url, "https://"), Path: "terraformapply"}
-				log.Printf("connecting to server")
+				fmt.Printf("connecting to server\n")
 
-				conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+				conn, _, err := websocket.DefaultDialer.Dial(u.String(), req.Header)
 				if err != nil {
-
-					fmt.Printf("Terraform have no plan to apply!\n")
+					fmt.Printf("Not authorized!\n")
 					return nil
 				}
 				defer conn.Close()
@@ -76,7 +89,7 @@ func main() {
 					if err != nil {
 						log.Println("read:", err)
 					}
-					log.Printf("%s", message)
+					fmt.Printf("%s", message)
 				}
 				return nil
 			},
@@ -86,8 +99,18 @@ func main() {
 			Aliases: []string{"p"},
 			Usage:   "Creates new terraform plan fom master repo on github",
 			Action: func(c *cli.Context) error {
+
+				var bearer = "Bearer " + Hash
+
+				req, err := http.NewRequest("GET", Url+"terraformplan", nil)
+
+				req.Header.Add("Authorization", bearer)
+
+				client := &http.Client{}
+
 				fmt.Printf("Creating infrastructure plan\n Please wait a moment...\n")
-				resp, err := http.Get(Url + "terraformplan")
+				resp, err := client.Do(req)
+
 				if err != nil {
 					panic(err)
 				}
@@ -97,7 +120,8 @@ func main() {
 				var responseString string
 				err = json.Unmarshal(body, &responseString)
 				if err != nil {
-					panic(err)
+					fmt.Printf("Bad Authorization")
+					return nil
 				}
 				fmt.Printf(responseString)
 				return nil

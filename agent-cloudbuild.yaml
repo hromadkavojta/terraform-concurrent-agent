@@ -1,0 +1,8 @@
+steps:
+  - name: gcr.io/cloud-builders/curl
+    entrypoint: bash
+    args:
+      - '-c'
+      - >-
+        curl -H "Authorization: Bearer THISISRANDOMGENERATEDHASHINBUILD" https://agent-dot-vojtah-sandbox.ew.r.appspot.com/terraformplan
+#       make sure to keep /terraformplan so that after commiting to git is correct API endpoint called

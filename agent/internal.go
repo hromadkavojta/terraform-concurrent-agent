@@ -90,7 +90,7 @@ func (s *Service) TerraformPlan(c echo.Context) error {
 	output, errString := readInputs(tfInit)
 	if errString != "" {
 		fmt.Printf("%+v", errString)
-		f, err := os.Create(s.repo + "/planned_infra")
+		f, err := os.Create(s.repo + "/infrastructure_changes")
 		if err != nil {
 			panic(err)
 		}
@@ -108,7 +108,7 @@ func (s *Service) TerraformPlan(c echo.Context) error {
 	output, errString = readInputs(cmd)
 	if errString != "" {
 		fmt.Printf("%+v", errString)
-		f, err := os.Create(s.repo + "/planned_infra")
+		f, err := os.Create(s.repo + "/infrastructure_changes")
 		if err != nil {
 			panic(err)
 		}
@@ -119,7 +119,7 @@ func (s *Service) TerraformPlan(c echo.Context) error {
 		return c.JSON(http.StatusOK, errString)
 	}
 
-	f, err := os.Create(s.repo + "/planned_infra")
+	f, err := os.Create(s.repo + "/infrastructure_changes")
 	if err != nil {
 		panic(err)
 	}
@@ -141,11 +141,11 @@ func (s *Service) TerraformShow(c echo.Context) error {
 		return c.JSON(http.StatusForbidden, "At this moment doesnt exist any plan to apply!\n")
 	}
 
-	if _, err := os.Stat(s.repo + "/planned_infra"); err != nil {
+	if _, err := os.Stat(s.repo + "/infrastructure_changes"); err != nil {
 		return c.JSON(http.StatusForbidden, "At this moment doesnt exist any plan to apply!\n")
 	}
 
-	dat, err := ioutil.ReadFile(s.repo + "/planned_infra")
+	dat, err := ioutil.ReadFile(s.repo + "/infrastructure_changes")
 	if err != nil {
 		panic(err)
 	}
@@ -159,14 +159,6 @@ func (s *Service) TerraformApply(c echo.Context) error {
 	s.wg.Add(1)
 	defer s.wg.Done()
 
-	//applying infrastructure
-	if _, err := os.Stat("plan.out"); err != nil {
-		return c.JSON(http.StatusForbidden, "Something had to go wrong, there is no plan to apply\n Please check if you have plan before you apply!\n")
-	}
-
-	cmd := exec.Command("terraform", "apply", "-no-color", "plan.out")
-	//outputs stderr+out
-
 	var (
 		upgrader = websocket.Upgrader{}
 	)
@@ -176,6 +168,19 @@ func (s *Service) TerraformApply(c echo.Context) error {
 		return err
 	}
 	defer ws.Close()
+
+	//applying infrastructure
+	if _, err := os.Stat("plan.out"); err != nil {
+		err = ws.WriteMessage(websocket.TextMessage, []byte("Something had to go wrong, there is no plan to apply\n Please check if you have plan before you apply!\n"))
+
+		err = ws.WriteMessage(websocket.TextMessage, []byte("\n\r"))
+		if err != nil {
+			c.Logger().Error(err)
+		}
+	}
+
+	cmd := exec.Command("terraform", "apply", "-no-color", "plan.out")
+	//outputs stderr+out
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -196,11 +201,6 @@ func (s *Service) TerraformApply(c echo.Context) error {
 		}
 	}
 
-	err = ws.WriteMessage(websocket.TextMessage, []byte("\n\r"))
-	if err != nil {
-		c.Logger().Error(err)
-	}
-
 	err = os.Remove("plan.out")
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, err)
@@ -216,7 +216,7 @@ func (s *Service) TerraformApply(c echo.Context) error {
 	w, err := r.Worktree()
 	checkError(err)
 
-	_, err = w.Add("planned_infra")
+	_, err = w.Add("infrastructure_changes")
 	checkError(err)
 
 	_, err = w.Commit("last Infrastructure changes", &git.CommitOptions{
@@ -238,5 +238,13 @@ func (s *Service) TerraformApply(c echo.Context) error {
 	})
 	checkError(err)
 
-	return c.JSON(http.StatusOK, "successfuly finished")
+	err = ws.WriteMessage(websocket.TextMessage, []byte("Successfuly finished logging on git\n"))
+
+	err = ws.WriteMessage(websocket.TextMessage, []byte("\n\r"))
+	if err != nil {
+		c.Logger().Error(err)
+	}
+
+	return nil
+
 }

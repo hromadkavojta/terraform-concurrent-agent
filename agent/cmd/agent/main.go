@@ -18,6 +18,7 @@ func main() {
 	viper.SetDefault("ACCESS_TOKEN", "")
 	viper.SetDefault("GIT_URL_HTTPS", "https://github.com/hromadkavojta/BP-infratest.git")
 	viper.SetDefault("GIT_URL_SSH", "git@github.com:hromadkavojta/BP-infratest.git")
+	viper.SetDefault("HASH64", "THISISRANDOMGENERATEDHASHINBUILD")
 
 	serviceVariables := agent.ServiceVariables{
 		Repo:           viper.GetString("SOURCE_REPO"),
@@ -44,6 +45,10 @@ func main() {
 	e := echo.New()
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
+
+	e.Use(middleware.KeyAuth(func(key string, c echo.Context) (bool, error) {
+		return key == viper.GetString("HASH64"), nil
+	}))
 
 	e.GET("/terraformplan", svc.TerraformPlan)
 	e.GET("/terraformshow", svc.TerraformShow)
