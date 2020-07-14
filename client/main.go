@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/signal"
 	"sort"
+	"strings"
 )
 
 var Url string
@@ -56,23 +57,24 @@ func main() {
 				interrupt := make(chan os.Signal, 1)
 				signal.Notify(interrupt, os.Interrupt)
 
-				u := url.URL{Scheme: "ws", Host: "localhost:8080", Path: "/terraformapply"}
+				u := url.URL{Scheme: "ws", Host: strings.Trim(Url, "https://"), Path: "terraformapply"}
 				log.Printf("connecting to server")
 
 				conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 				if err != nil {
-					conn.Close()
-					log.Fatal("dial:", err)
+
+					fmt.Printf("Terraform have no plan to apply!\n")
+					return nil
 				}
 				defer conn.Close()
 
 				for {
 					_, message, err := conn.ReadMessage()
-					if err != nil {
-						log.Println("read:", err)
-					}
 					if bytes.Compare(message, []byte("\n\r")) == 0 {
 						break
+					}
+					if err != nil {
+						log.Println("read:", err)
 					}
 					log.Printf("%s", message)
 				}
