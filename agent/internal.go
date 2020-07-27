@@ -238,7 +238,7 @@ func (s *Service) TerraformApply(c echo.Context) error {
 	})
 	checkError(err)
 
-	err = ws.WriteMessage(websocket.TextMessage, []byte("Successfuly finished logging on git\n"))
+	err = ws.WriteMessage(websocket.TextMessage, []byte("Successfully finished logging on git\n"))
 
 	err = ws.WriteMessage(websocket.TextMessage, []byte("\n\r"))
 	if err != nil {
