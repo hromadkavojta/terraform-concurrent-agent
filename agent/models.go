@@ -12,6 +12,7 @@ type Service struct {
 	w              *git.Worktree
 	committer      string
 	committerEmail string
+	ApplySync      bool
 }
 
 func NewService(
@@ -23,6 +24,7 @@ func NewService(
 		AccessToken:    variables.AccessToken,
 		committer:      variables.Committer,
 		committerEmail: variables.CommitterEmail,
+		ApplySync:      false,
 	}
 }
 

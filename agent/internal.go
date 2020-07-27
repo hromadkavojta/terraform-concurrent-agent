@@ -156,6 +156,12 @@ func (s *Service) TerraformShow(c echo.Context) error {
 
 func (s *Service) TerraformApply(c echo.Context) error {
 	//Binds version of plan user wants to use
+
+	if s.ApplySync {
+		return c.JSON(http.StatusForbidden, "Applying is currently in the progress\n")
+	}
+
+	s.ApplySync = true
 	s.wg.Add(1)
 	defer s.wg.Done()
 
@@ -184,10 +190,12 @@ func (s *Service) TerraformApply(c echo.Context) error {
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		s.ApplySync = false
 		panic(err)
 	}
 	err = cmd.Start()
 	if err != nil {
+		s.ApplySync = false
 		panic(err)
 	}
 
@@ -245,6 +253,7 @@ func (s *Service) TerraformApply(c echo.Context) error {
 		c.Logger().Error(err)
 	}
 
+	s.ApplySync = false
 	return nil
 
 }
