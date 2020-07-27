@@ -36,7 +36,7 @@ func main() {
 			Action: func(c *cli.Context) error {
 				var bearer = "Bearer " + Hash
 
-				req, err := http.NewRequest("GET", Url+"terraformshow", nil)
+				req, err := http.NewRequest("GET", Url+"terraform/show", nil)
 
 				req.Header.Add("Authorization", bearer)
 
@@ -68,10 +68,10 @@ func main() {
 				fmt.Printf("Applying infrastructure plan\n This might take a while...\n")
 
 				var bearer = "Bearer " + Hash
-				req, err := http.NewRequest("GET", Url+"terraformshow", nil)
+				req, err := http.NewRequest("GET", Url+"terraform/apply", nil)
 				req.Header.Add("Authorization", bearer)
 
-				u := url.URL{Scheme: "ws", Host: strings.Trim(Url, "https://"), Path: "terraformapply"}
+				u := url.URL{Scheme: "ws", Host: strings.Trim(Url, "https://"), Path: "terraform/apply"}
 				fmt.Printf("connecting to server\n")
 
 				conn, _, err := websocket.DefaultDialer.Dial(u.String(), req.Header)
@@ -102,7 +102,7 @@ func main() {
 
 				var bearer = "Bearer " + Hash
 
-				req, err := http.NewRequest("GET", Url+"terraformplan", nil)
+				req, err := http.NewRequest("GET", Url+"terraform/plan", nil)
 
 				req.Header.Add("Authorization", bearer)
 

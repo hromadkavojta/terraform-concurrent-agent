@@ -33,13 +33,13 @@ func main() {
 	clone := exec.Command("git", "clone", viper.GetString("GIT_URL_SSH"))
 	err := clone.Run()
 	if err != nil {
-		fmt.Printf("\x1b[31;1m%s\x1b[0m\n", fmt.Sprintf("error which is here: %s", err))
+		fmt.Printf("\x1b[31;1m%s\x1b[0m\n", fmt.Sprintf("error cloning repository: %s", err))
 	}
 
 	remoteAdd := exec.Command("git", "-C", viper.GetString("SOURCE_REPO"), "remote", "add", "push", viper.GetString("GIT_URL_HTTPS"))
 	err = remoteAdd.Run()
 	if err != nil {
-		fmt.Printf("\x1b[31;1m%s\x1b[0m\n", fmt.Sprintf("error which is here: %s", err))
+		fmt.Printf("\x1b[31;1m%s\x1b[0m\n", fmt.Sprintf("error adding repository to path: %s", err))
 	}
 
 	e := echo.New()
@@ -50,9 +50,9 @@ func main() {
 		return key == viper.GetString("HASH64"), nil
 	}))
 
-	e.GET("/terraformplan", svc.TerraformPlan)
-	e.GET("/terraformshow", svc.TerraformShow)
-	e.GET("/terraformapply", svc.TerraformApply)
+	e.GET("/terraform/plan", svc.TerraformPlan)
+	e.GET("/terraform/show", svc.TerraformShow)
+	e.GET("/terraform/apply", svc.TerraformApply)
 
 	e.Logger.Fatal(e.Start(":" + viper.GetString("port")))
 }
