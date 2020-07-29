@@ -4,5 +4,7 @@ steps:
     args:
       - '-c'
       - >-
-        curl -H "Authorization: Bearer THISISRANDOMGENERATEDHASHINBUILD" https://agent-dot-vojtah-sandbox.ew.r.appspot.com/terraformplan
-#       make sure to keep /terraformplan so that after commiting to git is correct API endpoint called
+        curl -H "Authorization: Bearer THISISRANDOMGENERATEDHASHINBUILD" https://agent-dot-vojtah-sandbox.ew.r.appspot.com/terraform/plan
+#       make sure to keep /terraform/plan so that after commiting to git is correct API endpoint called
+#       Authorization header replace with your secret value
+

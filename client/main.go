@@ -16,6 +16,7 @@ import (
 	"strings"
 )
 
+//Global variables gained while building application
 var Url string
 var Hash string
 
@@ -34,10 +35,10 @@ func main() {
 			Aliases: []string{"s"},
 			Usage:   "Shows terraform plan for next infastructure changes",
 			Action: func(c *cli.Context) error {
+
+				//creating request with authorization header
 				var bearer = "Bearer " + Hash
-
 				req, err := http.NewRequest("GET", Url+"terraform/show", nil)
-
 				req.Header.Add("Authorization", bearer)
 
 				client := &http.Client{}
@@ -50,6 +51,7 @@ func main() {
 				defer resp.Body.Close()
 				body, err := ioutil.ReadAll(resp.Body)
 
+				//Recieving mesage
 				var responseString string
 				err = json.Unmarshal(body, &responseString)
 				if err != nil {
@@ -71,6 +73,7 @@ func main() {
 				req, err := http.NewRequest("GET", Url+"terraform/apply", nil)
 				req.Header.Add("Authorization", bearer)
 
+				//edit url so it can connect via websockets
 				u := url.URL{Scheme: "ws", Host: strings.Trim(Url, "https://"), Path: "terraform/apply"}
 				fmt.Printf("connecting to server\n")
 
@@ -81,6 +84,7 @@ func main() {
 				}
 				defer conn.Close()
 
+				//reading from socket
 				for {
 					_, message, err := conn.ReadMessage()
 					if bytes.Compare(message, []byte("\n\r")) == 0 {
@@ -134,6 +138,7 @@ func main() {
 		return nil
 	}
 
+	//CLI configuration
 	sort.Sort(cli.CommandsByName(app.Commands))
 
 	err := app.Run(os.Args)

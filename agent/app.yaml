@@ -12,7 +12,7 @@ env_variables:
   COMMITTER: "hromadkavojta"                                          #Superuser that will commit logs to repository
   COMMITTER_EMAIL: "hromadkavojta@gmail.com"                          #email of superuser
   SOURCE_REPO: "BP-infratest"                                         #Repository of terraform configuration files
-  ACCESS_TOKEN: ""            #Personal access token from github
+  ACCESS_TOKEN: ""                                                    #Personal access token from github
   GIT_URL_HTTPS: "https://github.com/hromadkavojta/BP-infratest.git"  #git https url
   GIT_URL_SSH: "git@github.com:hromadkavojta/BP-infratest.git"        #git ssh url
   HASH64: "THISISRANDOMGENERATEDHASHINBUILD"                          #Generated hash for your teraform agent

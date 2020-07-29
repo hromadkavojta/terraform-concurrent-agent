@@ -22,7 +22,7 @@ func checkError(err error) {
 	if err == nil {
 		return
 	}
-	fmt.Printf("\x1b[31;1m%s\x1b[0m\n", fmt.Sprintf("error: %s", err))
+	log.Printf("\x1b[31;1m%s\x1b[0m\n", fmt.Sprintf("error: %s", err))
 }
 
 func readInputs(cmd *exec.Cmd) (string, string) {
@@ -155,8 +155,8 @@ func (s *Service) TerraformShow(c echo.Context) error {
 }
 
 func (s *Service) TerraformApply(c echo.Context) error {
-	//Binds version of plan user wants to use
 
+	//sync if ther isnt second Terraform apply in the progress
 	if s.ApplySync {
 		return c.JSON(http.StatusForbidden, "Applying is currently in the progress\n")
 	}
@@ -248,6 +248,7 @@ func (s *Service) TerraformApply(c echo.Context) error {
 
 	err = ws.WriteMessage(websocket.TextMessage, []byte("Successfully finished logging on git\n"))
 
+	//Sending \n\r to end the stream
 	err = ws.WriteMessage(websocket.TextMessage, []byte("\n\r"))
 	if err != nil {
 		c.Logger().Error(err)
