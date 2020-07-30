@@ -5,7 +5,7 @@ This agent is designed to improve team collaboration with focus on improving Git
 
 There are 3 parts for installing this agent to your google cloud project
 
-Fist is downloading your preferred terraform version to directory `agent`
+Fist download your preferred terraform binary from https://www.terraform.io/downloads.html and place it the directory `agent` 
 
 ### Creating secure connection
 - Create secret string that you place into makefile in root directory, into agent-cloudbuild.yaml authorization header and `agent/app.yaml` environment variable
