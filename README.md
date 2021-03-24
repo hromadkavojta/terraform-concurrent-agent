@@ -26,3 +26,5 @@ For last but not least change url address in root Makefile and in `agent-cloudbu
 - When commit to master branch is pushed, it automatically creates terraform plan, you can now inspect changes with `./tfagent show` and then apply with `./tfagent apply`
 
 Happy developing!
+yes
+bachlory work 1
